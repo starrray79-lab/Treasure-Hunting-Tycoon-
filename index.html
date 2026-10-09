@@ -1,0 +1,346 @@
+Here's your **Treasure Hunting Tycoon** game code! 🏴‍☠️💰
+
+Tap **Copy** in the top-right corner of the code box below. Then return to GitHub and paste everything into your `index.html` file.
+
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Treasure Hunting Tycoon</title>
+<style>
+*{box-sizing:border-box}
+body{
+ margin:0;
+ background:#10252a;
+ color:white;
+ font-family:Arial,sans-serif;
+ text-align:center;
+}
+header{
+ background:linear-gradient(135deg,#173d35,#326957);
+ padding:22px;
+}
+h1{color:#ffd166;font-size:27px}
+h2{color:#ffd166}
+.panel{
+ background:#193b40;
+ margin:14px;
+ padding:18px;
+ border-radius:15px;
+}
+button{
+ background:#e7ac38;
+ color:#17282a;
+ border:0;
+ border-radius:10px;
+ padding:13px;
+ margin:5px;
+ font-size:15px;
+ font-weight:bold;
+ cursor:pointer;
+}
+button:disabled{opacity:.4}
+.grid{
+ display:grid;
+ grid-template-columns:repeat(4,1fr);
+ gap:7px;
+}
+.tile{
+ font-size:30px;
+ height:75px;
+ background:#c8ae78;
+}
+.ocean .tile{background:#287b9e}
+#message{color:#ffdf85;min-height:45px}
+small{color:#bed2d4}
+</style>
+</head>
+<body>
+
+<header>
+<h1>🏴‍☠️ Treasure Hunting Tycoon</h1>
+<p>Build Your Treasure Empire!</p>
+<h2>🪙 <span id="coins">150</span> Coins</h2>
+<p>Level <span id="level">1</span>
+ | XP <span id="xp">0</span>/100</p>
+<p>⚡ Energy: <span id="energy">12</span>/12</p>
+</header>
+
+<div class="panel">
+<h2 id="location">🏝️ Coastal Treasure Hunt</h2>
+<p>Tap a location to search for treasure!</p>
+<div id="map" class="grid"></div>
+<p id="message">Your adventure begins!</p>
+<button onclick="changeArea(false)">🏝️ Land</button>
+<button id="oceanButton" onclick="changeArea(true)">
+🔒 Ocean: Level 5
+</button>
+</div>
+
+<div class="panel">
+<h2>🔎 Equipment</h2>
+<p>Detector Level:
+<span id="detector">1</span></p>
+<button onclick="upgrade()">
+Upgrade Detector:
+<span id="upgradeCost">100</span> Coins
+</button>
+</div>
+
+<div class="panel">
+<h2>👷 Treasure Hunting Crew</h2>
+<p>Workers: <span id="workers">0</span></p>
+<button onclick="hire()">
+Hire Worker:
+<span id="hireCost">200</span> Coins
+</button>
+<button onclick="expedition()">
+⛏️ Send Workers Hunting
+</button>
+</div>
+
+<div class="panel">
+<h2>⚡ Supplies</h2>
+<button onclick="rest()">
+Restore Energy — 50 Coins
+</button>
+</div>
+
+<div class="panel">
+<h2>🏆 Treasure Collection</h2>
+<p>Total Finds: <span id="findCount">0</span></p>
+<div id="collection">No treasure discovered yet.</div>
+</div>
+
+<div class="panel">
+<h2>💾 Your Empire</h2>
+<p>Progress saves automatically on this device.</p>
+<button onclick="resetGame()">Start New Game</button>
+</div>
+
+<footer>
+<p><small>Virtual game currency has no real-world cash value.</small></p>
+</footer>
+
+<script>
+const KEY="treasureTycoonSaveV1";
+
+function freshGame(){
+ return {
+  coins:150,
+  level:1,
+  xp:0,
+  energy:12,
+  detector:1,
+  workers:0,
+  ocean:false,
+  finds:[],
+  dug:[]
+ };
+}
+
+let game;
+try{
+ game=JSON.parse(localStorage.getItem(KEY))||freshGame();
+}catch(e){
+ game=freshGame();
+}
+
+const landTreasures=[
+ "Ancient Coin",
+ "Silver Ring",
+ "Emerald Pendant",
+ "Golden Chest",
+ "Royal Crown"
+];
+
+const oceanTreasures=[
+ "Sunken Coin",
+ "Pearl Necklace",
+ "Shipwreck Silver",
+ "Pirate Gold",
+ "Lost Royal Treasure"
+];
+
+function save(){
+ localStorage.setItem(KEY,JSON.stringify(game));
+}
+
+function message(text){
+ document.getElementById("message").textContent=text;
+}
+
+function render(){
+ const ids={
+  coins:game.coins,
+  level:game.level,
+  xp:game.xp,
+  energy:game.energy,
+  detector:game.detector,
+  workers:game.workers,
+  findCount:game.finds.length,
+  upgradeCost:game.detector*100,
+  hireCost:(game.workers+1)*200
+ };
+
+ for(const id in ids){
+  document.getElementById(id).textContent=ids[id];
+ }
+
+ document.getElementById("location").textContent=
+ game.ocean?"🌊 Sunken Pirate Ship":"🏝️ Coastal Treasure Hunt";
+
+ const oceanButton=document.getElementById("oceanButton");
+ oceanButton.disabled=game.level<5;
+ oceanButton.textContent=game.level>=5?
+ "🌊 Explore Ocean":"🔒 Ocean: Level 5";
+
+ const map=document.getElementById("map");
+ map.className=game.ocean?"grid ocean":"grid";
+ map.innerHTML="";
+
+ for(let i=0;i<16;i++){
+  const tile=document.createElement("button");
+  tile.className="tile";
+  const dug=game.dug.includes(i);
+  tile.textContent=dug?"🕳️":
+   game.ocean?["🌊","🪸","🐚","⚓"][i%4]:
+   ["🌴","🪨","🌾","🏝️"][i%4];
+  tile.disabled=dug;
+  tile.onclick=()=>dig(i);
+  map.appendChild(tile);
+ }
+
+ document.getElementById("collection").textContent=
+ game.finds.length?
+ game.finds.slice(-8).reverse().join(" • "):
+ "No treasure discovered yet.";
+
+ save();
+}
+
+function reward(worker=false){
+ const treasures=game.ocean?oceanTreasures:landTreasures;
+ const roll=Math.random();
+ const tier=roll<.48?0:roll<.75?1:roll<.91?2:roll<.98?3:4;
+ const treasure=treasures[tier];
+
+ const base=[12,25,55,120,250][tier];
+ const value=Math.round(
+  base*(1+(game.detector-1)*.35)*(game.ocean?2:1)
+ );
+
+ game.coins+=value;
+ game.finds.push(treasure);
+ game.xp+=worker?12:25;
+
+ while(game.xp>=100){
+  game.xp-=100;
+  game.level++;
+  game.energy=12;
+ }
+
+ return treasure+" found! +"+value+" coins!";
+}
+
+function dig(index){
+ if(game.dug.includes(index))return;
+ if(game.energy<=0){
+  message("Out of energy! Restore supplies.");
+  return;
+ }
+
+ game.energy--;
+ game.dug.push(index);
+ message("🎁 "+reward());
+ render();
+}
+
+function upgrade(){
+ const cost=game.detector*100;
+ if(game.coins<cost){
+  message("Not enough coins!");
+  return;
+ }
+ game.coins-=cost;
+ game.detector++;
+ message("Detector upgraded!");
+ render();
+}
+
+function hire(){
+ const cost=(game.workers+1)*200;
+ if(game.coins<cost){
+  message("Earn more coins to hire workers.");
+  return;
+ }
+ game.coins-=cost;
+ game.workers++;
+ message("New treasure hunter hired!");
+ render();
+}
+
+function expedition(){
+ if(game.workers===0){
+  message("Hire a worker first!");
+  return;
+ }
+ let results=[];
+ for(let i=0;i<Math.min(game.workers,10);i++){
+  results.push(reward(true));
+ }
+ message("👷 "+results.join(" "));
+ render();
+}
+
+function rest(){
+ if(game.coins<50){
+  message("You need 50 coins.");
+  return;
+ }
+ game.coins-=50;
+ game.energy=12;
+ game.dug=[];
+ message("Energy restored! New dig sites available.");
+ render();
+}
+
+function changeArea(ocean){
+ if(ocean&&game.level<5){
+  message("Reach level 5 to unlock diving.");
+  return;
+ }
+ game.ocean=ocean;
+ game.dug=[];
+ message(ocean?
+ "Explore the sunken shipwreck!":
+ "Explore the coastal treasure grounds!");
+ render();
+}
+
+function resetGame(){
+ if(confirm("Restart your treasure empire?")){
+  game=freshGame();
+  message("A new adventure begins!");
+  render();
+ }
+}
+
+render();
+</script>
+</body>
+</html>
+```
+
+### Your next step
+
+Once you've copied the code, return to GitHub, paste it into the blank `index.html` editor, and tap **Commit** to save it.
+
+This is a playable browser version with saved progress, not yet the finished Google Play app. We'll work on the Android packaging and advertising integration after the code is saved.
+
+**Tell me when you've pasted the code into GitHub.** I'll guide you through the next button.
+
+
+Here's your Treasure Hunting Tycoon code. Tap copy.
